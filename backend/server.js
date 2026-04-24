@@ -8,53 +8,71 @@ const {
   generateFingerprint,
   isNearDuplicate
 } = require("./ai");
+
 const { generateExplanation } = require("./gemini");
 const { generateCertificate } = require("./certificate");
+
 const app = express();
 
-// Middleware
+
+// ===================== MIDDLEWARE =====================
+
+// Allow frontend (Vercel) to access backend
 app.use(cors({
-  origin: "http://localhost:3000"
+  origin: "*"
 }));
 
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
-// Ensure uploads folder exists
+
+// ===================== UPLOAD FOLDER =====================
+
 if (!fs.existsSync("uploads")) {
   fs.mkdirSync("uploads");
 }
 
-// Multer storage setup
+
+// ===================== MULTER CONFIG =====================
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, "uploads/");
   },
   filename: function (req, file, cb) {
     cb(null, Date.now() + "-" + file.originalname);
-  },
+  }
 });
 
 const upload = multer({ storage });
 
-// In-memory fingerprint storage (demo only)
+
+// ===================== MEMORY STORAGE =====================
+
 const uploadedFiles = [];
 
-// Risk Level Helper
+
+// ===================== HELPER =====================
+
 function getRiskLevel(score) {
   if (score >= 80) return "Low";
   if (score >= 50) return "Medium";
   return "High";
 }
 
-// Test Gemini Route
+
+// ===================== ROUTES =====================
+
+// Health check
+app.get("/", (req, res) => {
+  res.send("TruthTrace Backend Running 🚀");
+});
+
+
+// AI test route
 app.get("/test-ai", async (req, res) => {
   try {
-    console.log("Testing Gemini connection...");
-
     const result = await generateExplanation("unique", 100);
-
-    console.log("Gemini response received");
 
     res.json({
       success: true,
@@ -62,8 +80,6 @@ app.get("/test-ai", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Gemini Error:", err);
-
     res.json({
       success: false,
       error: err.message
@@ -71,12 +87,9 @@ app.get("/test-ai", async (req, res) => {
   }
 });
 
-// Home Route
-app.get("/", (req, res) => {
-  res.send("TruthTrace Backend Running");
-});
 
-// Upload Route (Core Logic)
+// ===================== CORE UPLOAD ROUTE =====================
+
 app.post("/upload", upload.single("media"), async (req, res) => {
   try {
     if (!req.file) {
@@ -87,68 +100,66 @@ app.post("/upload", upload.single("media"), async (req, res) => {
 
     const fileBuffer = fs.readFileSync(req.file.path);
 
-    // Generate fingerprint
+    // Fingerprint
     const fingerprint = generateFingerprint(fileBuffer);
 
-    // Check duplicate
+    // Duplicate check
     const exactMatch = uploadedFiles.find(
-  file => file.fingerprint === fingerprint
-);
+      file => file.fingerprint === fingerprint
+    );
 
-const nearDuplicate = isNearDuplicate(
-  fileBuffer,
-  uploadedFiles
-);
+    const nearDuplicate = isNearDuplicate(fileBuffer, uploadedFiles);
 
+    // Default values
     let status = "unique";
     let truthScore = 100;
 
     if (exactMatch) {
-  status = "duplicate";
-  truthScore = 20;
-}
-  else if (nearDuplicate) {
-  status = "near-duplicate";
-  truthScore = 55;
-}
+      status = "duplicate";
+      truthScore = 20;
+    } else if (nearDuplicate) {
+      status = "near-duplicate";
+      truthScore = 55;
+    }
 
-    // Gemini AI Explanation
+    // AI explanation
     const explanation = await generateExplanation(status, truthScore);
 
-    // Risk Level
     const riskLevel = getRiskLevel(truthScore);
+
+    // Certificate generation
     let certificatePath = null;
 
-if (status === "unique") {
-  const fullPath = generateCertificate({
-    fileName: req.file.filename,
-    fingerprint,
-    truthScore,
-    status,
-    riskLevel
-  });
+    if (status === "unique") {
+      const fullPath = generateCertificate({
+        fileName: req.file.filename,
+        fingerprint,
+        truthScore,
+        status,
+        riskLevel
+      });
 
-  // Convert to browser-accessible path
-  certificatePath = "/" + fullPath.split("uploads")[1].replace(/\\\\/g, "/");
-  certificatePath = "/uploads" + certificatePath;
-}
+      certificatePath = "/" + fullPath.split("uploads")[1].replace(/\\/g, "/");
+      certificatePath = "/uploads" + certificatePath;
+    }
 
-    // Store only unique fingerprints
+    // Store fingerprint (only if not duplicate)
     if (!exactMatch) {
-    uploadedFiles.push({
-    fingerprint,
-    size: fileBuffer.length
-  });
-}
+      uploadedFiles.push({
+        fingerprint,
+        size: fileBuffer.length
+      });
+    }
 
+    // Response
     return res.json({
       status,
-     message:
-      status === "duplicate"
-     ? "⚠ Exact duplicate detected!"
-     : status === "near-duplicate"
-     ? "⚠ Similar modified content detected!"
-     : "✔ New unique content uploaded",
+      message:
+        status === "duplicate"
+          ? "⚠ Exact duplicate detected!"
+          : status === "near-duplicate"
+          ? "⚠ Similar modified content detected!"
+          : "✔ New unique content uploaded",
       file: req.file.filename,
       fingerprint,
       truthScore,
@@ -166,8 +177,11 @@ if (status === "unique") {
   }
 });
 
-// Start Server
-const PORT = 5000;
+
+// ===================== START SERVER =====================
+
+// IMPORTANT for cloud deployment
+const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
