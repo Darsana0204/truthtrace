@@ -90,17 +90,18 @@ export default function Home() {
               Upload image or video content for AI ownership verification.
             </p>
 
-            <div className="border-2 border-dashed border-zinc-600 rounded-2xl p-8 text-center cursor-pointer hover:border-white transition">
+<div className="border-2 border-dashed border-zinc-600 rounded-2xl p-8 text-center cursor-pointer hover:border-white transition">
   <p className="text-lg font-medium">Click to Upload Media</p>
+
   <p className="text-sm text-gray-400 mt-2">
     Images, videos, documents supported
   </p>
 
   <input
     type="file"
+    id="fileUpload"
     onChange={(e) => setFile(e.target.files?.[0] || null)}
     className="hidden"
-    id="fileUpload"
   />
 
   <label
@@ -109,6 +110,12 @@ export default function Home() {
   >
     Select File
   </label>
+
+  {file && (
+    <p className="mt-4 text-sm text-gray-300">
+      Selected File: <span className="font-semibold">{file.name}</span>
+    </p>
+  )}
 </div>
 
             <button
