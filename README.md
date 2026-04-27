@@ -116,6 +116,8 @@ truthtrace/
 ```
 
 ---
+Use-case Diagram
+<img width="1402" height="1122" alt="image" src="https://github.com/user-attachments/assets/98e19b58-2671-4245-b612-7aa1471b46dc" />
 
 ## Live Demo
 
